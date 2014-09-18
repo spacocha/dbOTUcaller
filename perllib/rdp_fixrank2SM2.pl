@@ -13,7 +13,15 @@ while ($line =<IN>){
     next unless ($line);
     $line=~s/\"//g;
     (@pieces)=split ("\t", $line);
-    ($OTU)=$pieces[0]=~/^(.+)$/;
+    if ($pieces[0]=~/^.+;size=[0-9]$/){
+	($OTU)=$pieces[0]=~/^(.+);size=[0-9]$/;
+    } elsif ($pieces[0]=~/^.+;count=[0-9]$/){
+	($OTU)=$pieces[0]=~/^(.+);count=[0-9]$/;
+    } elsif ($pieces[0]=~/^.+\/ab=[0-9]\/$/){
+	($OTU)=$pieces[0]=~/^.+\/ab=[0-9]\/$/;
+    } else {
+	($OTU)=$pieces[0]=~/^(.+)$/;
+    }
     $gothash{$OTU}++;
     if ($pieces[5]){
 	$hash{$OTU}{"k"}=$pieces[5] if ($pieces[7]>$thresh);
