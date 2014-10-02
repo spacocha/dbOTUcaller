@@ -9,7 +9,7 @@ Input requirements:
 '''
 #needed to parse sequence files and alignments
 #record version information here
-version="DBC version 2.0 updated 10/01/14"
+version="DBC version 2.0 updated 10/02/14"
 
 import Bio
 from Bio import AlignIO
