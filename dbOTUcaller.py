@@ -9,7 +9,7 @@ Input requirements:
 '''
 #needed to parse sequence files and alignments
 #record version information here
-version="DBC version 2.0 updated 09/10/14"
+version="DBC version 2.0 updated 10/01/14"
 
 import Bio
 from Bio import AlignIO
@@ -17,6 +17,7 @@ from Bio.Align import MultipleSeqAlignment
 import numpy as np
 import sys
 import argparse
+import csv
 from datetime import datetime
 #not sure if all of these things are needed
 #somehow need to get chisquare 
@@ -26,8 +27,27 @@ from rpy2.robjects.packages import importr
 base = importr('base')
 chisqtest=rpy2.robjects.r("chisq.test")
 import gc
+import math
 
 #Create custom defs
+def JS(x,y): #Jensen-shannon divergence
+   import warnings
+   warnings.filterwarnings("ignore", category = RuntimeWarning)
+   idx = np.where(x==0)
+   x_pos = x.copy()
+   x_pos[idx] = 1
+   idy = np.where(y==0)
+   y_pos = y.copy()
+   y_pos[idy] = 1
+   dx = x*np.log2(2*x_pos/(x_pos+y))
+   dy = y*np.log2(2*y_pos/(x+y_pos))
+   d = 0.5*sum(dx+dy)
+   return d
+
+def JSsqrt(x,y):
+   d = JS(x,y)
+   return d**0.5
+
 def hamdist(str1, str2):
    """Count the # of differences between equal length strings str1 and str2"""
    #This doesn't exactly equal the clustalw values
@@ -113,7 +133,7 @@ def assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pv
    OTUtable1, with only ecological info to pass to pval
    onlyOTUs, with only the OTU names
    all_data, with the sum at the end
-   x, the string x=str(alignment[i].seq) from the alignment
+   x, the string from the alignment in rec = next((r for r in alignment if r.id == onlyOTUs[nindex]), None): str(rec.seq)
    i, the index of the sequence to be worked on which corresponds to OTUtable1, onlyOTUs and alldata"""
 
    #something about the existingOTUalignment, the OTUtale1 with only ecological info, onlyOTUs with the ids, 
@@ -155,6 +175,10 @@ def assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pv
                #it satisfies the abundance criteria
                #get the pvalue
                pval=runchisq(printverbose, i, actualjindex, OTUtable1, 10000)
+               x=OTUtable1[i]
+               y=OTUtable1[actualjindex]
+               JSD=JS(x,y)
+               if printverbose: log.write("JSD %f %s %s\n" % (JSD, onlyOTUs[actualjindex], onlyOTUs[i]))
                if pval < pvaluecutoff:
                   if printverbose: log.write("Did not pass pvaluecutoff; look for another\n")
                   #if it's outside of the cutoff, its significant
@@ -204,11 +228,11 @@ def workthroughtable (dounaligned, printverbose, distancecriteria, abundancecrit
          if printverbose: log.write("OTUs exist, assignOTUs\n")
          #OTUs exist, see if it will fit into the existingOTU set
          #this tests both the genetic and ecological similarity
-         log.write("nindex %d\n" % nindex)
-         log.write("id %s\n" % onlyOTUs[nindex])
+         if printverbose: log.write("nindex %d\n" % nindex)
+         if printverbose: log.write("id %s\n" % onlyOTUs[nindex])
          #get the sequence record for the next OTU
          rec = next((r for r in alignment if r.id == onlyOTUs[nindex]), None)
-         log.write("%s string\n" % str(rec.seq))
+         if printverbose: log.write("%s string\n" % str(rec.seq))
          res=assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, existingOTUalignment, OTUtable1, onlyOTUs, all_data, str(rec.seq), nindex)
          if printverbose: log.write("Finished assignOTU\n")
          #Work on this, I'm not sure how to do this exactly
@@ -249,6 +273,37 @@ def workthroughtable (dounaligned, printverbose, distancecriteria, abundancecrit
          #record the OTU counts in the outtable file dictionary
          outtable[OTUtable2['OTU'][nindex]]=OTUtable1[nindex]
          
+def printresults(outlistfilename, outtablefilename, outfastafilename, listdict, outtable):
+   log.write("Finished distribution-based clustering\n\n")
+   
+   #write out the OTU list
+   log.write("WRITING RESULTS\nList file: %s\n" % outlistfilename)
+   for x in listdict:
+      outlisthand.write("\t".join(listdict[x]))
+      outlisthand.write("\n")
+
+   #write out the OTU table results
+   log.write("OTU table: %s\n" % outtablefilename)
+   headers=OTUtable2.dtype.names[:]
+   outtablehand.write("\t".join(headers))
+   outtablehand.write("\n")
+   for x in outtable:
+      outtablehand.write(x)
+      outtablehand.write("\t")
+      for y in outtable[x]:
+         outtablehand.write("%f\t" % y)
+      outtablehand.write("\n")
+
+   #write out the rep fastas
+   log.write("Fasta of OTU rep sequences: %s\n" % outfastafilename)
+   for x in outtable:
+      outfastahand.write(">%s\n" % x)
+      rec = next((r for r in alignment if r.id == x), None)
+      outfastahand.write("%s\n" % str(rec.seq))
+
+   timestamp=str(datetime.now())
+   string="\nEnding time: %s\n" % (timestamp)
+   log.write(string)   
 
 if __name__ == '__main__':
    parser = argparse.ArgumentParser(description='Create OTUs using ecological and genetic information (DBC version 2.0)')
@@ -260,9 +315,24 @@ if __name__ == '__main__':
    parser.add_argument('-p', '--pvalue', type=float, default=0.0001, help='pvalue cut-off: this could vary depending on the total number of libraries')
    parser.add_argument('-u', '--unaligned', action='store_true', help='use the unaligned sequence to correct alignment issues')
    parser.add_argument('-v', '--verbose', action='store_true', help='verbose option to work through method in log file')
+   parser.add_argument('-s', '--split', type=str, help='input a list of the sequences clustered to the same percent as the distance cut-off to speed up the analysis')
    args = parser.parse_args()
+
+   #open output files to make writable
+   #log file
    logfilename="%s.log" % args.output
    log =open(logfilename, 'w')
+   #list file
+   outlistfilename="%s.list" % args.output
+   outlisthand=open(outlistfilename, 'w')
+   #fasta output file
+   outfastafilename="%s.fasta" % args.output
+   outfastahand=open(outfastafilename, 'w')   
+   #mat file
+   outtablefilename="%s.mat" % args.output
+   outtablehand=open(outtablefilename, 'w')
+
+   #log some beginning information
    log.write("%s\n\nBeginning time: " % version)
    timestamp=str(datetime.now())
    string="%s\n" % (timestamp)
@@ -281,6 +351,14 @@ if __name__ == '__main__':
    else:
       log.write("verbose is off\n")
       printverbose=False
+      
+   if args.split:
+      log.write("splitting analysis with %s\n" % args.split)
+      splitlist=[]
+      with open(args.split) as tsv:
+         for line in csv.reader(tsv, delimiter="\t"):
+            splitlist.append(line)
+      
 
    log.write("Distance cutoff: %f\nAbundance criteria: %f\nPvalue cutoff: %f\n" % (args.dist_cutoff, args.k_fold, args.pvalue))
    log.write("Input matfile: %s\nInput alignmentfile: %s\nOutput prefix: %s\n" % (args.OTUtablefile, args.alignmentfile, args.output))
@@ -292,41 +370,41 @@ if __name__ == '__main__':
    onlyOTUs=OTUtable2['OTU']
    listdict=dict()
    outtable={}
-   workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, OTUtable1, OTUtable2, alignment, onlyOTUs)
-   log.write("Finished distribution-based clustering\n\n")
-   
-   #write out the OTU list
+   if (args.split):
+      if printverbose: log.write("Splitting into subclusters based on %s\n" %args.split)
+      itno=0
+      for cluster in splitlist:
+         #clear the existing OTUs to make room for new ones
+         itno += 1
+         if printverbose: log.write("\n\nBeginning split no. %d\n" %itno)
+         if 'existingOTUalignment' in locals():
+            del existingOTUalignment
+
+         #now do the workthrough for each cluster
+         #begin to make subsets of OTUtables
+         mask=np.ones(len(cluster), dtype=bool)
+         templist=[]
+         for isolate in cluster:
+            #make a mask with only the index values for the isolates in this cluster with templist
+            fakeindex=np.where(OTUtable2['OTU']==isolate)
+            realindex=fakeindex[0][0]
+            templist.append(realindex)
+
+         #make the mask
+         mask=[[templist]]
+         #apply the mask to the tables to make subtables (although they return tuples and the first values are right
+         subOTUtable1=OTUtable1[mask]
+         subOTUtable2=OTUtable2[mask]
+         subonlyOTUs=onlyOTUs[mask]
+         workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, subOTUtable1[0], subOTUtable2[0], alignment, subonlyOTUs[0])
+         
+   else:
+      workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, OTUtable1, OTUtable2, alignment, onlyOTUs)
+
    outlistfilename="%s.list" % args.output
-   log.write("WRITING RESULTS\nList file: %s\n" % outlistfilename)
-   outlist =open(outlistfilename, 'w')
-   for x in listdict:
-      outlist.write("\t".join(listdict[x]))
-      outlist.write("\n")
-
-   #write out the OTU table results
    outtablefilename="%s.mat" % args.output
-   log.write("OTU table: %s\n" % outtablefilename)
-   outtablehand=open(outtablefilename, 'w')
-   headers=OTUtable2.dtype.names[:]
-   outtablehand.write("\t".join(headers))
-   outtablehand.write("\n")
-   for x in outtable:
-      outtablehand.write(x)
-      outtablehand.write("\t")
-      for y in outtable[x]:
-         outtablehand.write("%f\t" % y)
-      outtablehand.write("\n")
-
-   #write out the rep fastas
    outfastafilename="%s.fasta" % args.output
-   log.write("Fasta of OTU rep sequences: %s\n" % outfastafilename)
-   outfastahand=open(outfastafilename, 'w')
-   for x in outtable:
-      outfastahand.write(">%s\n" % x)
-      rec = next((r for r in alignment if r.id == x), None)
-      outfastahand.write("%s\n" % str(rec.seq))
+   printresults(outlistfilename, outtablefilename, outfastafilename, listdict, outtable)
+      
 
-   timestamp=str(datetime.now())
-   string="\nEnding time: %s\n" % (timestamp)
-   log.write(string)   
-
+      
