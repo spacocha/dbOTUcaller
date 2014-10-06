@@ -123,12 +123,13 @@ def runchisq(printverbose, i1, i2, OTUarray, reps):
       
       
 
-def assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, existingOTUalignment, OTUtable1, onlyOTUs, alldata,  x, i):
+def assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, JScorrect, existingOTUalignment, OTUtable1, onlyOTUs, alldata,  x, i):
    """Assign sequence into an existing set of OTUs
    
    distancecriteria, the max distance between sequences that can be merged into an OTU
    abundancecriteria, the fold-difference the existingOTU has to be over the tested OTU to be included
    pvalucutoff, the pvals lower than the cutoff will remain distinct OTUs
+   JScorrect, a tuple of whether or not to correct JScorrect[0] and the value to use as the cutoff JScorrect[1]
    existingOTUalignment, an alignment dataset(?) with only the existing OTUs
    OTUtable1, with only ecological info to pass to pval
    onlyOTUs, with only the OTU names
@@ -177,10 +178,15 @@ def assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pv
                pval=runchisq(printverbose, i, actualjindex, OTUtable1, 10000)
                x=OTUtable1[i]
                y=OTUtable1[actualjindex]
-               JSD=JS(x,y)
-               if printverbose: log.write("JSD %f %s %s\n" % (JSD, onlyOTUs[actualjindex], onlyOTUs[i]))
                if pval < pvaluecutoff:
-                  if printverbose: log.write("Did not pass pvaluecutoff; look for another\n")
+                  if printverbose: log.write("Did not pass pvaluecutoff\n")
+                  if JScorrect[0]:
+                     JSD=JS(x/sum(x),y/sum(y))
+                     if printverbose: log.write("JSD %f %s %s\n" % (JSD, onlyOTUs[actualjindex], onlyOTUs[i]))
+                     if JSD < JScorrect[1]:
+                        if printverbose: log.write("Similar enough by JSD to merge even though did not pass pvalue cutoff: merge\n")
+                        tup=(actualjindex, pval, sortedL[j][0])
+                        return('merged', tup)
                   #if it's outside of the cutoff, its significant
                   #assign to another 
                   #print to log if verbose
@@ -211,7 +217,7 @@ def assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pv
       tup=('NA', 'NA', 'NA')
       return('not merged', tup)
 
-def workthroughtable (dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, OTUtable1, OTUtable2, alignment, onlyOTUs):
+def workthroughtable (dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, JScorrect, OTUtable1, OTUtable2, alignment, onlyOTUs):
    if printverbose: log.write("Start workingthroughtable\n")
    new_col = OTUtable1.sum(1)[...,None]
    all_data = np.append(OTUtable1, new_col, 1)
@@ -233,7 +239,7 @@ def workthroughtable (dounaligned, printverbose, distancecriteria, abundancecrit
          #get the sequence record for the next OTU
          rec = next((r for r in alignment if r.id == onlyOTUs[nindex]), None)
          if printverbose: log.write("%s string\n" % str(rec.seq))
-         res=assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, existingOTUalignment, OTUtable1, onlyOTUs, all_data, str(rec.seq), nindex)
+         res=assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, JScorrect, existingOTUalignment, OTUtable1, onlyOTUs, all_data, str(rec.seq), nindex)
          if printverbose: log.write("Finished assignOTU\n")
          #Work on this, I'm not sure how to do this exactly
          if res[0] == 'merged':
@@ -316,6 +322,7 @@ if __name__ == '__main__':
    parser.add_argument('-u', '--unaligned', action='store_true', help='use the unaligned sequence to correct alignment issues')
    parser.add_argument('-v', '--verbose', action='store_true', help='verbose option to work through method in log file')
    parser.add_argument('-s', '--split', type=str, help='input a list of the sequences clustered to the same percent as the distance cut-off to speed up the analysis')
+   parser.add_argument('-j', '--useJS', type=float, help='Merge statistically significantly different sequences if below Jensen-Shannon cut-off?')
    args = parser.parse_args()
 
    #open output files to make writable
@@ -358,7 +365,12 @@ if __name__ == '__main__':
       with open(args.split) as tsv:
          for line in csv.reader(tsv, delimiter="\t"):
             splitlist.append(line)
-      
+   
+   if args.useJS:
+      log.write("Using JS divergence to merge statistically significantly different OTUs that are very similar with %f JS value\n" % args.useJS)
+      JScorrect=(1, args.useJS)
+   else:
+      JScorrect=(0,)
 
    log.write("Distance cutoff: %f\nAbundance criteria: %f\nPvalue cutoff: %f\n" % (args.dist_cutoff, args.k_fold, args.pvalue))
    log.write("Input matfile: %s\nInput alignmentfile: %s\nOutput prefix: %s\n" % (args.OTUtablefile, args.alignmentfile, args.output))
@@ -396,10 +408,10 @@ if __name__ == '__main__':
          subOTUtable1=OTUtable1[mask]
          subOTUtable2=OTUtable2[mask]
          subonlyOTUs=onlyOTUs[mask]
-         workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, subOTUtable1[0], subOTUtable2[0], alignment, subonlyOTUs[0])
+         workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, JScorrect, subOTUtable1[0], subOTUtable2[0], alignment, subonlyOTUs[0])
          
    else:
-      workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, OTUtable1, OTUtable2, alignment, onlyOTUs)
+      workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, JScorrect, OTUtable1, OTUtable2, alignment, onlyOTUs)
 
    outlistfilename="%s.list" % args.output
    outtablefilename="%s.mat" % args.output
