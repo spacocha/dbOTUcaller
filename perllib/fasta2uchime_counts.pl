@@ -3,24 +3,28 @@
 #	Use this program to make tab files for FileMaker
 #
 
-	die "Usage: mat fasta output\n" unless (@ARGV);
+	die "Usage: mat fasta > redirect\n" unless (@ARGV);
 	
 	chomp (@ARGV);
-	($mat, $file, $output) = (@ARGV);
+	($mat, $file) = (@ARGV);
 chomp ($mat);
 chomp ($file);
-chomp ($output);
 $first=1;
-open (OUT, ">${output}") or die "Can't open $output\n";
+@headers=();
 open (IN, "<$mat") or die "Can't open $mat\n";
 while ($line1 = <IN>){
     chomp ($line1);
     next unless ($line1);
-    ($newinfo, @pieces) = split ("\t", $line1);
+    ($info, @pieces) = split ("\t", $line1);
     if ($first){
 	@headers=@pieces;
 	$first=();
     } else {
+#	if ($info=~/_[0-9]+$/){
+#	    ($newinfo)=$info=~/^(.+)_[0-9]+$/;
+#	} else {
+	    $newinfo=$info;
+#	}
 	$j = @pieces;
 	$i=0;
 	until ($i>=$j){
@@ -40,13 +44,18 @@ while ($line1 = <IN>){
     chomp ($line1);
     next unless ($line1);
     (@pieces) = split ("\n", $line1);
-    ($newinfo) = shift (@pieces);
+    ($info) = shift (@pieces);
     ($sequence)=join ("", @pieces);
+#    if ($info=~/_[0-9]+/){
+#	($newinfo)=$info=~/^(.+)_[0-9]+$/;
+#    } else {
+	$newinfo=$info;
+#    }
     $seqhash{$newinfo}=$sequence;
 }
 	
 close (IN);
 	
 foreach $newinfo (sort {$mathash{$b} <=> $mathash{$a}} keys %mathash){
-    print OUT ">${newinfo};size=$mathash{$newinfo}\n$seqhash{$newinfo}\n" if ($seqhash{$newinfo});
+    print ">${newinfo};counts=$mathash{$newinfo}\n$seqhash{$newinfo}\n" if ($seqhash{$newinfo});
 }
