@@ -59,5 +59,5 @@ while ($line1 = <IN>){
 close (IN);
 	
 foreach $newinfo (sort {$mathash{$b} <=> $mathash{$a}} keys %mathash){
-    print OUT ">${newinfo};counts=$mathash{$newinfo}/\n$seqhash{$newinfo}\n" if ($seqhash{$newinfo});
+    print OUT ">${newinfo};size=$mathash{$newinfo}\n$seqhash{$newinfo}\n" if ($seqhash{$newinfo});
 }
