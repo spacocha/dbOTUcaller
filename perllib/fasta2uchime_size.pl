@@ -3,12 +3,13 @@
 #	Use this program to make tab files for FileMaker
 #
 
-	die "Usage: mat fasta > redirect\n" unless (@ARGV);
+	die "Usage: mat fasta output\n" unless (@ARGV);
 	
 	chomp (@ARGV);
-	($mat, $file) = (@ARGV);
+	($mat, $file, $output) = (@ARGV);
 chomp ($mat);
 chomp ($file);
+chomp ($output);
 $first=1;
 @headers=();
 open (IN, "<$mat") or die "Can't open $mat\n";
@@ -40,6 +41,7 @@ while ($line1 = <IN>){
 close (IN);
 $/ = ">";
 open (IN, "<$file") or die "Can't open $file\n";
+open (OUT, ">$output") or die "Can't open $output\n";
 while ($line1 = <IN>){	
     chomp ($line1);
     next unless ($line1);
@@ -57,5 +59,5 @@ while ($line1 = <IN>){
 close (IN);
 	
 foreach $newinfo (sort {$mathash{$b} <=> $mathash{$a}} keys %mathash){
-    print ">${newinfo};counts=$mathash{$newinfo}/\n$seqhash{$newinfo}\n" if ($seqhash{$newinfo});
+    print OUT ">${newinfo};counts=$mathash{$newinfo}/\n$seqhash{$newinfo}\n" if ($seqhash{$newinfo});
 }
