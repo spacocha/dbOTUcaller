@@ -9,7 +9,7 @@ Input requirements:
 '''
 #needed to parse sequence files and alignments
 #record version information here
-version="DBC version 2.0 updated 10/02/14"
+version="DBC version 2.0 updated 11/18/14"
 
 import Bio
 from Bio import AlignIO
@@ -217,7 +217,7 @@ def assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pv
       tup=('NA', 'NA', 'NA')
       return('not merged', tup)
 
-def workthroughtable (dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, JScorrect, OTUtable1, OTUtable2, alignment, onlyOTUs):
+def workthroughtable (logdict, dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, JScorrect, OTUtable1, OTUtable2, alignment, onlyOTUs):
    if printverbose: log.write("Start workingthroughtable\n")
    new_col = OTUtable1.sum(1)[...,None]
    all_data = np.append(OTUtable1, new_col, 1)
@@ -235,40 +235,65 @@ def workthroughtable (dounaligned, printverbose, distancecriteria, abundancecrit
          #OTUs exist, see if it will fit into the existingOTU set
          #this tests both the genetic and ecological similarity
          if printverbose: log.write("nindex %d\n" % nindex)
-         if printverbose: log.write("id %s\n" % onlyOTUs[nindex])
+         if printverbose: log.write("id %s\n" % onlyOTUs[nindex]) 
          #get the sequence record for the next OTU
          rec = next((r for r in alignment if r.id == onlyOTUs[nindex]), None)
          if printverbose: log.write("%s string\n" % str(rec.seq))
-         res=assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, JScorrect, existingOTUalignment, OTUtable1, onlyOTUs, all_data, str(rec.seq), nindex)
-         if printverbose: log.write("Finished assignOTU\n")
-         #Work on this, I'm not sure how to do this exactly
-         if res[0] == 'merged':
-            if printverbose: log.write("The result is merged\n")
-            #print out the the log that it's part of the mergeOTU
-            pstring="Changefrom,%s,%s,Changeto,p.value,%f,Dist,%f,Done\n" % (onlyOTUs[nindex], onlyOTUs[res[1][0]], res[1][1], res[1][2])
-            log.write(pstring)
-            #record the OTU in the listdict
-            if printverbose: log.write("this is being appended %d %s to %d %s\n" % (nindex, onlyOTUs[nindex], res[1][0], onlyOTUs[res[1][0]]))
-            listdict[onlyOTUs[res[1][0]]].append(onlyOTUs[nindex])
-            #add the new data to the outtable dict
-            outtable[onlyOTUs[res[1][0]]]=outtable[onlyOTUs[res[1][0]]] + OTUtable1[nindex]
+         
+         if onlyOTUs[nindex] in logdict:
+               if printverbose: log.write("Found %s in old log file\n" % onlyOTUs[nindex])
+               if logdict[onlyOTUs[nindex]][0] == onlyOTUs[nindex]:
+                  if printverbose: log.write("Was a parent in old log file %s\n" % onlyOTUs[nindex])
+                  if printverbose: log.write("This is being created in existingOTUalignment %d %s\n" % (nindex, onlyOTUs[nindex]))
+                  existingOTUalignment.append(rec)
+                  #record the rep sequence in the list file dict
+                  listdict[onlyOTUs[nindex]] = [onlyOTUs[nindex]]
+                  #record the OTU table in the outtable dict
+                  outtable[OTUtable2['OTU'][nindex]]=OTUtable1[nindex]
+               else:
+                  if printverbose: log.write("Was a child in old log file %s\n" % onlyOTUs[nindex])
+                  if printverbose: log.write("this is being appended %d %s to %s\n" % (nindex, onlyOTUs[nindex], logdict[onlyOTUs[nindex]][0]))
+                  print "This is the sequence %s and this is the parent %s\n" %(onlyOTUs[nindex], logdict[onlyOTUs[nindex]][0])
+                  listdict[logdict[onlyOTUs[nindex]][0]].append(onlyOTUs[nindex])
+                  outtable[logdict[onlyOTUs[nindex]][0]]=outtable[logdict[onlyOTUs[nindex]][0]] + OTUtable1[nindex]
          else:
-            #nothing came back, so create it as a new OTU
-            if printverbose: log.write("the result is nothing\n")
-            pstring="%s is a parent,Done\n" % (onlyOTUs[nindex])
-            log.write(pstring)
-            if printverbose: log.write("This is being created in existingOTUalignment %d %s\n" % (nindex, onlyOTUs[nindex]))
-            rec = next((r for r in alignment if r.id == onlyOTUs[nindex]), None)
-            existingOTUalignment.append(rec)
-            #record the rep sequence in the list file dict
-            listdict[onlyOTUs[nindex]] = [onlyOTUs[nindex]]
-            #record the OTU table in the outtable dict
-            outtable[OTUtable2['OTU'][nindex]]=OTUtable1[nindex]
+            res=assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pvaluecutoff, JScorrect, existingOTUalignment, OTUtable1, onlyOTUs, all_data, str(rec.seq), nindex)
+            if printverbose: log.write("Finished assignOTU\n")
+            if res[0] == 'merged':
+               if printverbose: log.write("The result is merged\n")
+               #print out the the log that it's part of the mergeOTU
+               pstring="Changefrom,%s,%s,Changeto,p.value,%f,Dist,%f,Done\n" % (onlyOTUs[nindex], onlyOTUs[res[1][0]], res[1][1], res[1][2])
+               log.write(pstring)
+               #record the OTU in the listdict
+               if printverbose: log.write("this is being appended %d %s to %d %s\n" % (nindex, onlyOTUs[nindex], res[1][0], onlyOTUs[res[1][0]]))
+               listdict[onlyOTUs[res[1][0]]].append(onlyOTUs[nindex])
+               #add the new data to the outtable dict
+               outtable[onlyOTUs[res[1][0]]]=outtable[onlyOTUs[res[1][0]]] + OTUtable1[nindex]
+            else:
+               #nothing came back, so create it as a new OTU
+               if printverbose: log.write("the result is nothing\n")
+               pstring="Parent,%s,Done\n" % (onlyOTUs[nindex])
+               log.write(pstring)
+               if printverbose: log.write("This is being created in existingOTUalignment %d %s\n" % (nindex, onlyOTUs[nindex]))
+               rec = next((r for r in alignment if r.id == onlyOTUs[nindex]), None)
+               existingOTUalignment.append(rec)
+               #record the rep sequence in the list file dict
+               listdict[onlyOTUs[nindex]] = [onlyOTUs[nindex]]
+               #record the OTU table in the outtable dict
+               outtable[OTUtable2['OTU'][nindex]]=OTUtable1[nindex]
       else:
          #theres nothing to merge with, it's a parent (it's the first one)
          if printverbose: log.write("No OTUs exist, begin\n")
-         string="%s is a parent,Done\n" % (onlyOTUs[nindex])
-         log.write(string)
+         #check if it was a parent in the old log
+         if onlyOTUs[nindex] in logdict:
+            #This was found in the old log
+            #Check to make sure it was a parent
+            if logdict[onlyOTUs[nindex]][0] != onlyOTUs[nindex]:
+               #Raise error
+               raise AgreementError("Disagreement between current and prevous analysis\n")
+         else:
+            string="Parent,%s,Done\n" % (onlyOTUs[nindex])
+            log.write(string)
          #create the existingOTUalignment to search through
          if printverbose: log.write("This is being created in existingOTUalignment %d %s\n" % (nindex, onlyOTUs[nindex]))
          existingOTUalignment= MultipleSeqAlignment([])
@@ -311,6 +336,25 @@ def printresults(outlistfilename, outtablefilename, outfastafilename, listdict, 
    string="\nEnding time: %s\n" % (timestamp)
    log.write(string)   
 
+def readoldlog(oldlog, printverbose):
+   #This is where I'll put the code to read in the old log information
+   logdict=dict()
+   if printverbose: log.write("Using old log file in analysis: %s\n" %args.oldlog)
+   with open(args.oldlog) as tsv:
+      for line in csv.reader(tsv, delimiter=","):
+         if line:
+            #record old values and predetermined relationships
+            if line[-1] == "Done":
+               if line[0] == "Changefrom":
+                  if printverbose: log.write("This was changed in old log file:child %s, parent %s \n" % (line[1], line[2]))
+                  #do stuff to record this information 
+                  #record the parent/child relationship in the listdict
+                  logdict[line[1]]=(line[2], float(line[5]), float(line[7]))
+               elif line[0] == "Parent":
+                  if printverbose: log.write("This was a parent in old log file: parent %s\n" % line[1])
+                  logdict[line[1]]=(line[1], 0, 0)
+   return(logdict)
+
 if __name__ == '__main__':
    parser = argparse.ArgumentParser(description='Create OTUs using ecological and genetic information (DBC version 2.0)')
    parser.add_argument('OTUtablefile', help='OTU table input')
@@ -323,57 +367,115 @@ if __name__ == '__main__':
    parser.add_argument('-v', '--verbose', action='store_true', help='verbose option to work through method in log file')
    parser.add_argument('-s', '--split', type=str, help='input a list of the sequences clustered to the same percent as the distance cut-off to speed up the analysis')
    parser.add_argument('-j', '--useJS', type=float, help='Merge statistically significantly different sequences if below Jensen-Shannon cut-off?')
+   parser.add_argument('-o', '--oldlog', type=str, help='Incorporate the results from an old log file?')
    args = parser.parse_args()
 
    #open output files to make writable
    #log file
-   logfilename="%s.log" % args.output
-   log =open(logfilename, 'w')
-   #list file
+   if args.oldlog:
+      #I THINK I NEED TO ACTUALLY READ THE OLD FILE AFTER I LOAD ALL OF THE OTHER STUFF
+      with open(args.oldlog) as tsv:
+         for line in csv.reader(tsv, delimiter=","):
+            if line:
+               #record old values (you have to re-run with the same criteria and files to be valid)
+               if line[0] == "Distance cutoff":
+                  args.dist_cutoff=float(line[1])
+               elif line[0] == "Abundance criteria":
+                  args.k_fold=float(line[1])
+               elif line[0] == "Pvalue cutoff":
+                  args.pvalue=float(line[1])
+               elif line[0] == "Input matfile":
+                  args.OTUtablefile=line[1]
+               elif line[0] == "Input alignmentfile":
+                  args.alignmentfile=line[1]
+               elif line[0] == "Output prefix":
+                  args.output=line[1]
+               elif line[0] == "Unaligned distance values":
+                  if line[1]:
+                     dounaligned=True
+                  else:
+                     dounaligned=False
+                  args.unalign=line[1]
+               elif line[0] == "verbose":
+                  if int(line[1]):
+                     printverbose=True
+                  else:
+                     printverbose=False
+                  args.verbose=int(line[1])
+               elif line[0] == "splitting analysis with":
+                  args.split=line[1]
+                  if args.split:
+                     splitlist=[]
+                     with open(args.split) as tsv:
+                        for line in csv.reader(tsv, delimiter="\t"):
+                           splitlist.append(line)
+               elif line[0] == "Using JS":
+                  args.useJS=line[1]
+
+                  
+      if args.useJS:
+         JScorrect=(1, args.useJS)
+      else:
+         JScorrect=(0,)
+
+      log =open(args.oldlog, 'a')
+      log.write("START OVER\nReusing old log file in analysis,%s\n" %args.oldlog)
+
+                  
+   else:
+      #open output files to make writable
+      #log file
+      logfilename="%s.log" % args.output
+      log =open(logfilename, 'w')
+      #list file                                                                                                                                                                                      
+      #log some beginning information
+      log.write("%s\n\nBeginning time: " % version)
+      timestamp=str(datetime.now())
+      string="%s\n" % (timestamp)
+      log.write(string)
+      log.write("\nSTARTING INPUT VALUES AND CONDITIONS\n")
+      if args.unaligned:
+         log.write("Unaligned distance values,1,will be evaluated\n")
+         dounaligned=True
+      else:
+         log.write("Unaligned distance values,0,will not be evaluated\n")
+         dounaligned=False
+         
+      if args.verbose: 
+         log.write("verbose,1, is on\n")
+         printverbose=True
+      else:
+         log.write("verbose,0, is off\n")
+         printverbose=False
+            
+      if args.split:
+         log.write("splitting analysis with,%s\n" % args.split)
+         splitlist=[]
+         with open(args.split) as tsv:
+            for line in csv.reader(tsv, delimiter="\t"):
+               splitlist.append(line)
+   
+      if args.useJS:
+         log.write("Using JS,%f\n" % args.useJS)
+         JScorrect=(1, args.useJS)
+      else:
+         JScorrect=(0,)
+
+      log.write("Distance cutoff,%f\nAbundance criteria,%f\nPvalue cutoff,%f\n" % (args.dist_cutoff, args.k_fold, args.pvalue))
+      log.write("Input matfile,%s\nInput alignmentfile,%s\nOutput prefix,%s\n" % (args.OTUtablefile, args.alignmentfile, args.output))
+
+
+   #Open the files to gather information
+   #list file                                                                                                                                                                                      
    outlistfilename="%s.list" % args.output
    outlisthand=open(outlistfilename, 'w')
-   #fasta output file
+   #fasta output file                                                                                                                                                                              
    outfastafilename="%s.fasta" % args.output
-   outfastahand=open(outfastafilename, 'w')   
-   #mat file
+   outfastahand=open(outfastafilename, 'w')
+   #mat file                                                                                                                                                                                       
    outtablefilename="%s.mat" % args.output
    outtablehand=open(outtablefilename, 'w')
 
-   #log some beginning information
-   log.write("%s\n\nBeginning time: " % version)
-   timestamp=str(datetime.now())
-   string="%s\n" % (timestamp)
-   log.write(string)
-   log.write("\nSTARTING INPUT VALUES AND CONDITIONS\n")
-   if args.unaligned:
-      log.write("Unaligned distance values will be evaluated\n")
-      dounaligned=True
-   else:
-      log.write("Unaligned distance values will not be evaluated\n")
-      dounaligned=False
-
-   if args.verbose: 
-      log.write("verbose is on\n")
-      printverbose=True
-   else:
-      log.write("verbose is off\n")
-      printverbose=False
-      
-   if args.split:
-      log.write("splitting analysis with %s\n" % args.split)
-      splitlist=[]
-      with open(args.split) as tsv:
-         for line in csv.reader(tsv, delimiter="\t"):
-            splitlist.append(line)
-   
-   if args.useJS:
-      log.write("Using JS divergence to merge statistically significantly different OTUs that are very similar with %f JS value\n" % args.useJS)
-      JScorrect=(1, args.useJS)
-   else:
-      JScorrect=(0,)
-
-   log.write("Distance cutoff: %f\nAbundance criteria: %f\nPvalue cutoff: %f\n" % (args.dist_cutoff, args.k_fold, args.pvalue))
-   log.write("Input matfile: %s\nInput alignmentfile: %s\nOutput prefix: %s\n" % (args.OTUtablefile, args.alignmentfile, args.output))
    log.write("\nNOTES FROM METHOD\n")
    table = np.genfromtxt(args.OTUtablefile, comments="#")
    OTUtable1=table[1:,1:]
@@ -382,6 +484,10 @@ if __name__ == '__main__':
    onlyOTUs=OTUtable2['OTU']
    listdict=dict()
    outtable={}
+   logdict=dict()
+   if args.oldlog:
+      logdict=readoldlog(args.oldlog, printverbose)
+
    if (args.split):
       if printverbose: log.write("Splitting into subclusters based on %s\n" %args.split)
       itno=0
@@ -391,7 +497,9 @@ if __name__ == '__main__':
          if printverbose: log.write("\n\nBeginning split no. %d\n" %itno)
          if 'existingOTUalignment' in locals():
             del existingOTUalignment
-
+         listdict=dict()
+         outtable={}
+         #WITH OLD.LOG, SEE IF IT WAS DONE ALREADY
          #now do the workthrough for each cluster
          #begin to make subsets of OTUtables
          mask=np.ones(len(cluster), dtype=bool)
@@ -408,15 +516,18 @@ if __name__ == '__main__':
          subOTUtable1=OTUtable1[mask]
          subOTUtable2=OTUtable2[mask]
          subonlyOTUs=onlyOTUs[mask]
-         workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, JScorrect, subOTUtable1[0], subOTUtable2[0], alignment, subonlyOTUs[0])
-         
+         workthroughtable (logdict, dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, JScorrect, subOTUtable1[0], subOTUtable2[0], alignment, subonlyOTUs[0])
+         outlistfilename="%s.list" % args.output
+         outtablefilename="%s.mat" % args.output
+         outfastafilename="%s.fasta" % args.output
+         printresults(outlistfilename, outtablefilename, outfastafilename, listdict, outtable)
    else:
-      workthroughtable (dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, JScorrect, OTUtable1, OTUtable2, alignment, onlyOTUs)
-
-   outlistfilename="%s.list" % args.output
-   outtablefilename="%s.mat" % args.output
-   outfastafilename="%s.fasta" % args.output
-   printresults(outlistfilename, outtablefilename, outfastafilename, listdict, outtable)
+      
+      workthroughtable (logdict, dounaligned, printverbose, args.dist_cutoff, args.k_fold, args.pvalue, JScorrect, OTUtable1, OTUtable2, alignment, onlyOTUs)
+      outlistfilename="%s.list" % args.output
+      outtablefilename="%s.mat" % args.output
+      outfastafilename="%s.fasta" % args.output
+      printresults(outlistfilename, outtablefilename, outfastafilename, listdict, outtable)
       
 
       
