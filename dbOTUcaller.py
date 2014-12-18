@@ -336,6 +336,10 @@ def printresults(outlistfilename, outtablefilename, outfastafilename, listdict, 
    string="\nEnding time: %s\n" % (timestamp)
    log.write(string)   
 
+def almlabclue(printverbose):
+   clue="WWSPPD"
+   if printverbose: log.write("The next clue will remain an ENIGMA unless you know %s\n" % (clue))
+
 def readoldlog(oldlog, printverbose):
    #This is where I'll put the code to read in the old log information
    logdict=dict()
