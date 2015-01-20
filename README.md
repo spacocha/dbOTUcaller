@@ -15,7 +15,8 @@ Outline:
 1.) Requirements
 2.) Quick-start guide to running dbOTUcaller
 3.) Running dbOTUcaller from SmileTrain
-4.) Contact me
+4.) Additional tools
+5.) Contact me
 
 1.) Requirements:
 
@@ -120,6 +121,29 @@ In a file called Practical_notes_SmileTrain_dbOTU.docx
 
 Follow the instructions within that document for quick installation guide and test data.
 
-4.) Contact me:
+4.) Additional tools
+
+A.) Merging different analysis
+
+When running samples across different sequencing lanes, or combining separate analyses, you will have to use the following commands to merge datasets.
+-This assumes you have run --k_fold 10 (to remove potential sequencing errors) on at least two different samples and you want to join them.
+The following example assumes you have done two different dbOTU calling analyses in ../Reactor_and_Coupon/raw_data/dbOTU_dir and ../GroundWater/raw_data/dbOTUcaller_dir with the output files as indicated.
+
+Merge the data together:
+1.) Figure out how the sequences relate to each other- they must be the same length:
+perl ~/lib/dbOTUcaller/perllib/translate_fasta_eOTU.pl ../Reactor_and_Coupon/raw_data/dbOTU_dir/unique.fa ../GroundWater/raw_data/dbOTUcaller_dir/unique.fa > translate_complete.txt
+
+2.) Only keep sequences that are parents- the rest are considered as errors. Notice you use the unique.dbOTU.list from the output of the dbOTU analysis and the translate_complete.txt from step 1:
+perl ~/lib/dbOTUcaller/perllib/merge_eOTU_results_parentsonly2.pl translate_complete.txt ../Reactor_and_Coupon/raw_data/dbOTU_dir/unique.dbOTU.list,../GroundWater/raw_data/dbOTUcaller_dir/unique.dbOTU.list > merged_output.txt
+
+3.) make a text file which contains each mat file on a different line with ls:
+ls ../Reactor_and_Coupon/raw_data/dbOTU_dir/unique.f0.mat ../GroundWater/raw_data/dbOTUcaller_dir/unique.f0.mat > matfiles
+
+4.) Merge the different analyses into one using the output prefix "myoutput" and the output from steps 1, 2 and 3:
+perl ~/lib/dbOTUcaller/perllib/create_merged_dataset.pl merged_output.txt translate_complete.txt  matfiles myoutput
+
+files with myoutput.* can be used for additional analyses and should contain samples from both analyses. This can be done with two or more datasets
+
+5.) Contact me:
 
 Please create an issue to contact me about problems installing or running dbOTUcaller. I am happy to help, but documenting issues will help others who encounter the same issues.
