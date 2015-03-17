@@ -88,7 +88,7 @@ def runchisq(printverbose, i1, i2, OTUarray, reps):
        for j in i:
          for k in j:
             L.append(k)
-   #THIS WORKS WITH L!!!!
+
    if printverbose:
       pstring=str(L)
       log.write(pstring)
@@ -208,7 +208,6 @@ def assignOTU(dounaligned, printverbose, distancecriteria, abundancecriteria, pv
             return('not merged', tup)
       else:
          #this will be something to do if you don't find an OTU to merge into
-         #not sure if this is necessary
          if printverbose: log.write("Exit without break\n")
          tup=('NA', 'NA', 'NA')
          return('not merged', tup)
@@ -336,10 +335,6 @@ def printresults(outlistfilename, outtablefilename, outfastafilename, listdict, 
    string="\nEnding time: %s\n" % (timestamp)
    log.write(string)   
 
-def almlabclue(printverbose):
-   clue="WWSPPD"
-   if printverbose: log.write("The next clue will remain an ENIGMA unless you know %s\n" % (clue))
-
 def readoldlog(oldlog, printverbose):
    #This is where I'll put the code to read in the old log information
    logdict=dict()
@@ -377,7 +372,6 @@ if __name__ == '__main__':
    #open output files to make writable
    #log file
    if args.oldlog:
-      #I THINK I NEED TO ACTUALLY READ THE OLD FILE AFTER I LOAD ALL OF THE OTHER STUFF
       with open(args.oldlog) as tsv:
          for line in csv.reader(tsv, delimiter=","):
             if line:
