@@ -14,7 +14,7 @@ open (IN, "<$seqsfile") or die "Can't open $seqsfile\n";
 while ($line1 = <IN>){	
     chomp ($line1);
     next unless ($line1);
-    ($header, @pieces) = split ("\n", $line1);
+    ($header) = split ("\n", $line1);
     ($unique, $derep)= split (" ", $header);
     $hash{$derep}{$unique}++;
 }
