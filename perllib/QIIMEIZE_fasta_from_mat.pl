@@ -31,7 +31,6 @@ while ($line =<IN>){
 	$first=0;
     } else {
 	if ($seqhash{$OTU}){
-	    $tot++;
 	    $i=0;
 	    $j=@pieces;
 	    until ($i >=$j){
