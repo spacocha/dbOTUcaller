@@ -34,8 +34,6 @@ while ($line=<IN>){
 	    foreach $name (sort keys %{$hash{$seq}}){
 		print "\t$name"
 	    }
-	} else {
-	    die "Missing name seqs for $seq\n";
 	}
     }
     print "\n";
