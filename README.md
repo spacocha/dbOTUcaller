@@ -1,3 +1,7 @@
+NOTE: There is a faster implementation of this coded by Scott Olesen (https://github.com/swo/dbotu3).
+
+
+OUTDATED INFORMATION ABOUT THIS VERSION OF DISTRIBUTION-BASED CLUSTERING
 dbOTUcaller - new implementation of distribution-based clustering
 
 Distribution-based clustering version 2.0
